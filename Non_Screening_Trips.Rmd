@@ -1,0 +1,263 @@
+---
+title: "`r params$trip_name`"
+author: 'NYSDEC SMAS : Keleigh Reynolds'
+date: "`r Sys.Date()`"
+output: word_document
+params:
+      user: kareynol
+      days: 2
+      trip_name: "BWRM Deforest-Moodna"
+      team_names: "Charlie and Intern"
+      overnights: FALSE
+      hotel_coords: "hotels_SEN_redo.csv"
+      ups_file: "ups_local.csv"
+      boat: FALSE
+      boat_type:
+        label: "Select Boat Type"
+        value: Triumph_skiff
+        choices: [Triumph_skiff, small_inflatable, big_inflatable]
+---
+
+
+```{r setup, include=FALSE,message=FALSE,warning=FALSE,results='asis'}
+knitr::opts_chunk$set(echo = FALSE)
+library(dplyr)
+library(knitr)
+library(flextable)
+
+#read in the raw data
+# file.path=file.path(here::here(),
+#           "data",
+#           params$file.df)
+
+file.path.ups=file.path(here::here(),
+                        "data",
+                        params$ups_file)
+
+#sites<-read.csv(file.path,stringsAsFactors = FALSE)
+sites<-readxl::read_excel(paste("C:/Users/",params$user,"/New York State Office of Information Technology Services/SMAS - Site Selection/2022/2022__SBU_Site_Selection_Template.xlsx",sep=""),sheet = 1)
+
+
+shipping<-read.csv(file.path.ups,stringsAsFactors = FALSE)
+
+```
+
+```{r select-sites,warning=FALSE,message=FALSE}
+
+survey<-select.list(unique(sites$Survey_Name), preselect = NULL, multiple = FALSE,
+            title = NULL, graphics = getOption("menu.graphics"))
+
+survey=survey
+
+```
+
+```{r subset-sites-by-survey,warning=FALSE,message=FALSE}
+sites<-sites %>% 
+  subset(Survey_Name %in% survey)
+
+days=as.numeric(params$days)
+```
+
+```{r}
+library(leaflet)
+data <- sites %>% 
+  select(SH_SITE_ID,SH_LATITUDE,SH_LONGITUDE) %>% 
+  filter(!is.na(SH_LATITUDE))
+map<-leaflet(data=data) %>% 
+  addTiles() %>% 
+  addMarkers(~as.numeric(SH_LONGITUDE),
+             ~as.numeric(SH_LATITUDE),
+             popup = ~as.character(SH_SITE_ID))
+map
+
+sites$SH_LONGITUDE<-as.numeric(sites$SH_LONGITUDE)
+sites$SH_LATITUDE<-as.numeric(sites$SH_LATITUDE)
+```
+
+
+
+```{r create-site-lists-by-day,warning=FALSE,message=FALSE}
+
+
+list_of_days=list()
+
+for (i in 1:max(days)){
+  # print(i)
+  list_of_days[[i]]<-list()
+  names(list_of_days)[[i]]<-paste("site_list_day",i,sep = "")
+  list_of_days[[i]]<-select.list(unique(sites$SH_SITE_ID), preselect = NULL, multiple = TRUE,
+                                 title = NULL, graphics = getOption("menu.graphics"))
+print(paste("ok that's day",i,sep = " "))
+}
+
+
+
+```
+
+```{r subset-sites-file-by-day,warning=FALSE,message=FALSE,results='asis'}
+
+sites_list=list()
+
+for (i in 1:max(days)){
+  print(i)
+  sites_list[[i]]<-list()
+
+  list_filter<-list
+  sites_list[[i]]<-sites %>% 
+    subset(SH_SITE_ID %in% list_of_days[[i]])
+  names(sites_list)[[i]]<-paste("site_list_day",i,sep = "")
+
+}
+
+
+```
+
+
+```{r create-teams,warning=FALSE,message=FALSE}
+create_teams<-function(x){
+  x<-x %>% 
+    mutate(team=paste(params$team_names),
+           order=1:max(nrow(x))) %>% 
+    mutate(order=as.numeric(order)) %>% 
+    mutate(SH_LONGITUDE=as.numeric(SH_LONGITUDE))
+
+}
+
+sites_list_2<-lapply(sites_list, create_teams)
+
+#create home base row
+create_home<-function(x){
+  home<-x %>% 
+    mutate(ROW_ID=0,
+           RAS_Name=paste(RAS_Name),
+           Survey_Name=paste(Survey_Name),
+           Surveyed_By=paste(Surveyed_By),
+           Frequency=as.numeric(Frequency),
+           Type=paste(Type),
+           `New site`="F",
+           `EPA ID`=0,
+           STATUS="",
+           Justification="",
+           `Requested By`="",
+           PWL_Assess_Date="",
+           SITE_HISTORY_PK="",
+           SH_BASIN=0,
+           SH_LOCATION="",
+           SH_RIVMILE=0,
+           SITE_PWL_ID="",
+           SITE_WQ_STANDARD="",
+           SH_OLD_SITE_ID="",
+           SH_LATITUDE = as.numeric(42.680982), 
+           SH_LONGITUDE = as.numeric(-73.696676),
+           SH_SITE_ID="HOME",
+           lat_long=paste(SH_LATITUDE,SH_LONGITUDE,sep = ", "),
+           order = 0,
+           SH_DESC="425 Jordan Rd, Troy NY",
+           SH_NAME="Field Office") %>% 
+    distinct() %>% 
+    bind_rows(x,.) %>% 
+    arrange(order)
+
+}
+
+sites_list_ordered<-lapply(sites_list_2,create_home)
+
+create_back_home<-function(x){
+  back<-x %>%
+     mutate(ROW_ID=0,
+           RAS_Name=paste(RAS_Name),
+           Survey_Name=paste(Survey_Name),
+           Surveyed_By=paste(Surveyed_By),
+           Frequency=as.numeric(Frequency),
+           Type=paste(Type),
+           `New site`="F",
+           `EPA ID`=0,
+           STATUS="",
+           Justification="",
+           `Requested By`="",
+           PWL_Assess_Date="",
+           SITE_HISTORY_PK="",
+           SH_BASIN=0,
+           SH_LOCATION="",
+           SH_RIVMILE=0,
+           SITE_PWL_ID="",
+           SITE_WQ_STANDARD="",
+           SH_OLD_SITE_ID="",
+           SH_LATITUDE = as.numeric(42.680982), 
+           SH_LONGITUDE = as.numeric(-73.696676),
+           lat_long=paste(SH_LATITUDE,SH_LONGITUDE,sep = ", "),
+           SH_SITE_ID="HOME_return",
+           order = max(order)+1,
+           SH_DESC="425 Jordan Rd, Troy NY",
+           SH_NAME="Field Office") %>%
+    distinct() %>%
+    bind_rows(x,.) %>%
+    arrange(order)
+}
+sites_list_final<-lapply(sites_list_ordered,create_back_home)
+
+```
+
+
+```{r crow-fly,warning=FALSE,message=FALSE,results='asis'}
+
+#create data frame of the distances
+library(geosphere)
+crow_fly<-function(x){
+  library(geosphere)
+  dist<- as.data.frame(vapply(2:nrow(x), FUN = function(i) {
+    distm(x = c(x$SH_LONGITUDE[i], x$SH_LATITUDE[i]),
+          y = c(x$SH_LONGITUDE[i - 1], x$SH_LATITUDE[i - 1]),
+          fun = distHaversine)
+  },
+  FUN.VALUE = NA_real_
+  )) 
+  #then change to miles and add time
+}
+crow_list<-lapply(sites_list_final,crow_fly)
+
+rename<-function(x){
+  x<-x %>% 
+    mutate(CTD=paste(`vapply(2:nrow(x), FUN = function(i) {     distm(x = c(x$SH_LONGITUDE[i], x$SH_LATITUDE[i]), y = c(x$SH_LONGITUDE[i - 1], x$SH_LATITUDE[i - 1]), fun = distHaversine) }, FUN.VALUE = NA_real_)`)) %>% 
+    select(CTD) %>%
+    mutate(CTD=as.numeric(CTD)) %>% 
+    mutate(miles=CTD*0.000621371,
+           time.65.mins=(miles/50)*60
+           )
+  
+}
+crow_list<-lapply(crow_list,rename)
+
+last_step_crow_fly<-function(x){
+#add in the home row at order =0
+new_row<-c(0,0,0)
+x<-rbind(new_row,x)#this creates the new home row
+
+}
+
+final<-lapply(crow_list,last_step_crow_fly) ###OMG THIS WORKED
+
+x<-do.call(rbind,Map(cbind,final,sites_list_final))#OMG OMG this also worked
+
+x$plan<-row.names(x)
+
+x<-x %>% 
+  mutate(order=stringr::str_extract(plan,"[^.]*$"),
+         temp=stringr::str_extract(plan,"[^_]+$"),
+         days=gsub(".*_|\\.[^.]+$", "", temp),
+         days=stringr::str_remove(days,"day"))
+
+write.csv(x,paste("outputs/",survey,".csv",sep = ""))
+
+print(paste("outputs/",survey,".csv",sep = ""))
+print("this is the file name to start the .RMD to generate the itinerary.")
+```
+
+```{r}
+#run the itinerary .RMD to get a pretty output
+```
+
+
+
+
+

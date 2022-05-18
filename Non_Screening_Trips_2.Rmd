@@ -1,0 +1,327 @@
+---
+title: "`r params$survey`"
+output:
+  officedown::rdocx_document:
+date: "`r Sys.Date()`"
+params:
+  data: BWRM_Deforest_Moodna.csv
+  survey:  BWRM_Deforest_Moodna
+  date:
+    input: date
+    label: Select trip date
+    value: '2022-05-24'
+  qa: 
+    label: "Does this trip have qa/qc samples?"
+    value: TRUE
+  equip_bl:
+    label: "Does this trip have equipment blanks?"
+    value: TRUE
+  ms_msd:
+    label: "Does this trip have MS/MDS samples?"
+    value:  FALSE
+  seq_dup:
+    label: "Does this trip have sequential dupe samples?"
+    value: FALSE
+  suite:
+    label: "What kind of chemisty suite?"
+    value: 'routine'
+    input: select
+    choices: ['screening','routine'] 
+  bugs:
+    label: "Are you collecting bugs?"
+    value: FALSE
+  bugs_rep:
+    label: "Reps for bugs?"
+    value: 1
+  user:
+    label: "Who is generating these files?"
+    value: 'kareynol'
+    input: text
+---
+
+```{r setup, include=FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.cap = TRUE)
+knitr::opts_chunk$set(tab.topcaption = TRUE)
+
+
+library(dplyr)
+value=params$data
+date.day=params$date
+survey=params$survey
+
+data<-read.csv(here::here(paste("outputs/2022/",value,sep = "")))
+
+data$days<-as.numeric(data$days)
+days.l<-unique(data$days)
+
+
+data2<-data %>% 
+  select(days) %>% 
+  distinct() %>% 
+  dplyr::rename(.day=days) %>% 
+  mutate(shift=lubridate::ymd(date.day),
+         num.day=lubridate::days(.day-1))
+
+library(lubridate)
+data3<-data2 %>% 
+  mutate(trip.date=shift+num.day) %>% 
+  select(.day,trip.date) %>% 
+  dplyr::rename(days=.day)
+
+plan<-merge(data,data3,
+            by="days")
+  
+
+plan2<-plan %>% 
+  select(order,SH_SITE_ID,SH_DESC,SH_LATITUDE,SH_LONGITUDE,days)
+
+plan3<-plan %>% 
+  select( order,SH_SITE_ID,miles, time.65.mins,days) %>% 
+  mutate(time_hrs=time.65.mins/60) %>% 
+  mutate_if(is.numeric,round,2) %>% 
+  dplyr::rename(time_mins=time.65.mins,
+         site=SH_SITE_ID)
+sites<-plan %>% 
+  filter(!grepl("HOME",SH_SITE_ID))
+
+num_sites=nrow(sites)
+
+
+plan4<-plan3 %>%
+  group_by(days) %>% 
+  mutate(total_day=sum(time_hrs)+1*num_sites) %>% 
+  select(days,total_day) %>% 
+  distinct() %>% 
+  dplyr::rename("Estimated total hours per day"=total_day)
+
+```
+
+Trip:  `r paste(unique(plan$Survey_Name))`  
+Team:  `r paste(unique(plan$team,sep=", "))`  
+Days:  `r paste(max(plan$days))`  
+Dates: `r paste(unique(plan$trip.date,sep=", "))`  
+
+```{r table-function,echo=FALSE,warning=FALSE}
+
+table.f<-function(df,x,y){
+  library(flextable)
+  tl<-flextable(df) %>% font(i = NULL, j = NULL, fontname="Arial", part = "all") %>% 
+    theme_zebra()
+  tl<-fontsize(tl,size = 8,part = "all")
+  tl<-autofit(tl)
+  tl<-set_table_properties(tl,layout="autofit")
+  tl<-align(tl, i = NULL, j =(x:y) , align = "center", part = "all")
+  tl
+}
+
+
+```
+
+```{r by-day-tables, echo=FALSE, results='asis'}
+
+days.l<-unique(plan3$days)
+
+for (i in seq_along(days.l)){
+  temp<-plan2 %>% 
+    subset(days %in% days.l[i])
+  
+  temp<-temp %>% 
+    arrange(order) %>% 
+    select(order,SH_SITE_ID,SH_DESC,SH_LATITUDE,SH_LONGITUDE) %>% 
+    dplyr::rename(Site=SH_SITE_ID,
+           Description=SH_DESC,
+           Lat=SH_LATITUDE,
+           Long=SH_LONGITUDE)
+  
+  tab<-table.f(temp,2,ncol(temp))
+   label=paste("Day: ", days.l[i])
+   tab<-flextable::set_caption(tab,label)
+  tab<-fit_to_width(tab,max_width = 7)
+  flextable_to_rmd(tab)
+  cat("<br><br>")
+  rm(temp)
+  
+  temp<-plan3 %>% 
+    subset(days %in% days.l[i])
+  
+  temp<-temp %>% 
+    arrange(order) %>% 
+    select(order,site,miles,time_mins,time_hrs)
+  
+    tab<-table.f(temp,2,ncol(temp))
+   label=paste("Estimated Drive Times, Day ", days.l[i])
+   tab<-flextable::set_caption(tab,label)
+  tab<-fit_to_width(tab,max_width = 7)
+  flextable_to_rmd(tab)
+  cat("<br><br>")
+  rm(temp)
+  
+     tab<-table.f(plan4,2,ncol(plan4))
+   label=paste("Estimated Trip Day Length")
+   tab<-flextable::set_caption(tab,label)
+  tab<-fit_to_width(tab,max_width = 7)
+  flextable_to_rmd(tab)
+  cat("<br><br>")
+  rm(temp)
+
+  
+}
+
+
+```
+
+```{r}
+#create tables for the coc to paste 
+coc<-plan2 %>% 
+  select(order, SH_SITE_ID,days) %>%
+  mutate(date=date.day,
+         collect="",
+         matrix="W",
+         eq="",
+         seq="",
+         msmsd="",
+         containers="",
+         screening="",
+         routine="",
+         mercury=""
+         )
+
+coc<-merge(coc,data3,
+           by="days")
+coc<-coc %>% 
+  mutate(date=trip.date) %>% 
+  select(-c(trip.date)) %>% 
+  filter(SH_SITE_ID!="HOME",
+         SH_SITE_ID!="HOME_return")
+
+#merge with the qaqc template
+qa<-read.csv(here::here("data/float_plan_templates/qaqc.csv"))
+
+if(params$qa){
+  coc<-plyr::rbind.fill(coc,qa)
+}
+         
+if (params$suite=="screening"){
+  coc<-coc %>% 
+    mutate(screening="X",
+           containers=6)
+}
+if (params$suite=="routine")
+{
+  coc<-coc %>% 
+    mutate(routine="X",
+           containers=10,
+           mercury="X")
+}
+
+if(params$qa){
+  if(!params$equip_bl){
+    coc<-coc %>% 
+      filter(SH_SITE_ID!="               -EQ")}
+  if(!params$ms_msd){
+    coc<-coc %>% 
+      filter(SH_SITE_ID!="               -MSMSD")
+  }
+  if(!params$seq_dup){
+    coc<-coc %>% 
+      filter(SH_SITE_ID!="               -SEQ")
+  }
+}
+
+coc<-coc %>% 
+  select(-c(order))
+
+table.f(coc,2,ncol(coc))
+```
+
+
+<!---BLOCK_LANDSCAPE_START--->
+
+```{r coc, echo=FALSE, warning=FALSE, message=FALSE,results='asis'}
+
+
+officer::block_pour_docx(file = here::here("COC_template.docx"))
+
+if (max(days.l)>1){
+ officer::block_pour_docx(file = here::here("COC_template.docx"))
+ 
+}
+
+if (max(days.l)>2){
+ officer::block_pour_docx(file = here::here("COC_template.docx"))
+ 
+}
+
+```
+
+<!---BLOCK_LANDSCAPE_STOP--->
+
+```{r labels, include=FALSE, warning=FALSE,message=FALSE}
+#runs the label maker after making the .csv to create them
+
+lables<-plan %>% 
+  select(SH_SITE_ID,order,trip.date,Survey_Name) %>% 
+  filter(!grepl("HOME", SH_SITE_ID)) %>% 
+  mutate(time="   :   ",
+         project=paste(Survey_Name),
+         date_text=format(trip.date,"%m/    /%Y"),
+         label.site=paste(SH_SITE_ID,format(trip.date,"%m____%Y"),"W",sep = "-")) %>% 
+  select(-c(order))
+
+
+if(params$qa){
+ label.site<-c("__________________-W-EQ","__________________-W","__________________-SEQ")
+ time<-c("   :   ","   :   ","   :   ")
+ date_text<-c("____/______/_____","____/______/_____","____/______/_____")
+ SH_SITE_ID<-c("EQ Blank","MSMSD","Seq DUP")
+ 
+ qa<-data.frame(label.site,time,date_text,SH_SITE_ID)
+}
+
+if(!params$equip_bl){
+  qa<-qa %>% 
+    filter(SH_SITE_ID!="EQ Blank")
+}
+if(!params$ms_msd){
+  qa<-qa %>% 
+    filter(SH_SITE_ID!="MSMSD")
+}
+
+if(!params$seq_dup){
+  qa<-qa %>% 
+    filter(SH_SITE_ID!="Seq DUP")
+}
+lables<-plyr::rbind.fill(lables,qa)
+
+lables<-lables %>% 
+  arrange(trip.date,SH_SITE_ID)
+
+if(params$suite=="routine"){
+  label2<-lables[rep(seq_len(nrow(lables)), 11), ]}
+
+if(params$suite=="screening"){
+  label2<-lables[rep(seq_len(nrow(lables)), 7), ]}
+
+label2<-label2 %>% 
+  arrange(trip.date,SH_SITE_ID)
+
+write.csv(label2,paste("outputs/",survey,"labels.csv",sep = "_"))
+
+if(params$bugs){
+  bugs<-label2 %>% 
+    select(SH_SITE_ID,trip.date,date_text,project) %>% 
+    distinct() %>% 
+    mutate(Type="SAMP TYPE:",
+           rep=paste("REP",params$bugs_rep,sep = ": ")) %>% 
+    filter(!is.na(trip.date))
+  bugs<-bugs[rep(seq_len(nrow(bugs)), params$bugs_rep*2), ]
+  
+  bugs<-bugs %>% 
+    arrange(SH_SITE_ID)
+  
+  write.csv(bugs,paste("outputs/",survey,"bug_labels.csv",sep = ""))
+}
+
+
+```
+
