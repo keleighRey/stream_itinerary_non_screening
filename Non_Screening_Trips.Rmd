@@ -2,20 +2,28 @@
 title: "`r params$trip_name`"
 author: 'NYSDEC SMAS : Keleigh Reynolds'
 date: "`r Sys.Date()`"
-output: word_document
+output:
+  html_document:
+    df_print: paged
 params:
-      user: kareynol
-      days: 2
-      trip_name: "BWRM Deforest-Moodna"
-      team_names: "Charlie and Intern"
-      overnights: FALSE
-      hotel_coords: "hotels_SEN_redo.csv"
-      ups_file: "ups_local.csv"
-      boat: FALSE
-      boat_type:
-        label: "Select Boat Type"
-        value: Triumph_skiff
-        choices: [Triumph_skiff, small_inflatable, big_inflatable]
+  user: kareynol
+  days: 1
+  month: 5
+  trip_name: Otsego_South
+  team_names: Charlie and Evan
+  overnights: no
+  hotel_coords: hotels_SEN_redo.csv
+  ups_file: ups_local.csv
+  bottle_labels: TRUE
+  bottle_label_file: bottles_2023.csv
+  boat: no
+  boat_type:
+    label: Select Boat Type
+    value: Triumph_skiff
+    choices:
+    - Triumph_skiff
+    - small_inflatable
+    - big_inflatable
 ---
 
 
@@ -33,12 +41,9 @@ library(flextable)
 file.path.ups=file.path(here::here(),
                         "data",
                         params$ups_file)
-
+params$user
 #sites<-read.csv(file.path,stringsAsFactors = FALSE)
-sites<-readxl::read_excel(paste("C:/Users/",params$user,"/New York State Office of Information Technology Services/SMAS - Site Selection/2022/2022__SBU_Site_Selection_Template.xlsx",sep=""),sheet = 1)
-
-
-shipping<-read.csv(file.path.ups,stringsAsFactors = FALSE)
+sites<-readxl::read_excel(paste("C:/Users/",params$user,"/New York State Office of Information Technology Services/SMAS - Site Selection/2023/2023__SBU_Site_Selection_Template.xlsx",sep=""),sheet = 1)
 
 ```
 
@@ -119,7 +124,12 @@ create_teams<-function(x){
     mutate(team=paste(params$team_names),
            order=1:max(nrow(x))) %>% 
     mutate(order=as.numeric(order)) %>% 
-    mutate(SH_LONGITUDE=as.numeric(SH_LONGITUDE))
+    mutate(SH_LONGITUDE=as.numeric(SH_LONGITUDE),
+           SH_LATITUDE = as.numeric(SH_LATITUDE),
+           SH_BASIN = as.numeric(SH_BASIN),
+           SH_OLD_SITE_ID = "") %>% 
+    select(-c(name_exists,long_lat)) %>% 
+    distinct()
 
 }
 
@@ -161,6 +171,10 @@ create_home<-function(x){
 }
 
 sites_list_ordered<-lapply(sites_list_2,create_home)
+sites_list_ordered$site_list_day1$SH_LATITUDE<-as.numeric(sites_list_ordered$site_list_day1$SH_LATITUDE)
+
+sites_list_ordered$site_list_day1<-sites_list_ordered$site_list_day1 %>% 
+  distinct()
 
 create_back_home<-function(x){
   back<-x %>%
@@ -214,6 +228,7 @@ crow_fly<-function(x){
   )) 
   #then change to miles and add time
 }
+
 crow_list<-lapply(sites_list_final,crow_fly)
 
 rename<-function(x){
@@ -247,9 +262,20 @@ x<-x %>%
          days=gsub(".*_|\\.[^.]+$", "", temp),
          days=stringr::str_remove(days,"day"))
 
-write.csv(x,paste("outputs/",survey,".csv",sep = ""))
 
-print(paste("outputs/",survey,".csv",sep = ""))
+#merge with bottle labels from lab
+if(params$bottle_labels){
+  bottle_file<-read.csv(here::here("data/bottles_2023.csv"))
+  x$month<-paste(as.numeric(params$month))
+  x<-merge(x,bottle_file,
+           by.x = c("SH_SITE_ID","month"),
+           by.y = c("Site.ID","Month.Sampling"),
+           all.x = TRUE)
+}
+
+write.csv(x,paste("outputs/2023/",params$trip_name,".csv",sep = ""))
+
+print(paste("outputs/2023/",params$trip_name,".csv",sep = ""))
 print("this is the file name to start the .RMD to generate the itinerary.")
 ```
 

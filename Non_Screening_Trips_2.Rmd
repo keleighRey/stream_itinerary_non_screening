@@ -4,18 +4,18 @@ output:
   officedown::rdocx_document:
 date: "`r Sys.Date()`"
 params:
-  data: BWRM_Deforest_Moodna.csv
-  survey:  BWRM_Deforest_Moodna
+  data: 'Otsego_South.csv'
+  survey: Otsego South
   date:
     input: date
     label: Select trip date
-    value: '2022-05-24'
+    value: '2023-05-24'
   qa: 
     label: "Does this trip have qa/qc samples?"
-    value: TRUE
+    value: FALSE
   equip_bl:
     label: "Does this trip have equipment blanks?"
-    value: TRUE
+    value: FALSE
   ms_msd:
     label: "Does this trip have MS/MDS samples?"
     value:  FALSE
@@ -39,7 +39,7 @@ params:
     input: text
 ---
 
-```{r setup, include=FALSE, warning=FALSE, message=FALSE}
+```{r setup, include=FALSE, warning=FALSE, message=FALSE, cache=FALSE}
 knitr::opts_chunk$set(echo = FALSE, fig.cap = TRUE)
 knitr::opts_chunk$set(tab.topcaption = TRUE)
 
@@ -49,7 +49,7 @@ value=params$data
 date.day=params$date
 survey=params$survey
 
-data<-read.csv(here::here(paste("outputs/2022/",value,sep = "")))
+data<-read.csv(here::here(paste("outputs/2023/",value,sep = "")))
 
 data$days<-as.numeric(data$days)
 days.l<-unique(data$days)
@@ -94,6 +94,10 @@ plan4<-plan3 %>%
   distinct() %>% 
   dplyr::rename("Estimated total hours per day"=total_day)
 
+# key<-data %>% 
+#   select(SH_SITE_ID,Key,Bottle.Label) %>% 
+#   unique()
+
 ```
 
 Trip:  `r paste(unique(plan$Survey_Name))`  
@@ -101,7 +105,7 @@ Team:  `r paste(unique(plan$team,sep=", "))`
 Days:  `r paste(max(plan$days))`  
 Dates: `r paste(unique(plan$trip.date,sep=", "))`  
 
-```{r table-function,echo=FALSE,warning=FALSE}
+```{r table-function,echo=FALSE,warning=FALSE,message=FALSE}
 
 table.f<-function(df,x,y){
   library(flextable)
@@ -114,6 +118,7 @@ table.f<-function(df,x,y){
   tl
 }
 
+#table.f(key,2,max(ncol(key)))
 
 ```
 
@@ -217,7 +222,7 @@ if (params$suite=="routine")
 if(params$qa){
   if(!params$equip_bl){
     coc<-coc %>% 
-      filter(SH_SITE_ID!="               -EQ")}
+      filter(SH_SITE_ID!="               -EB")}
   if(!params$ms_msd){
     coc<-coc %>% 
       filter(SH_SITE_ID!="               -MSMSD")
@@ -270,7 +275,7 @@ lables<-plan %>%
 
 
 if(params$qa){
- label.site<-c("__________________-W-EQ","__________________-W","__________________-SEQ")
+ label.site<-c("__________________-W-EB","__________________-W","__________________-SEQ")
  time<-c("   :   ","   :   ","   :   ")
  date_text<-c("____/______/_____","____/______/_____","____/______/_____")
  SH_SITE_ID<-c("EQ Blank","MSMSD","Seq DUP")
@@ -297,10 +302,10 @@ lables<-lables %>%
   arrange(trip.date,SH_SITE_ID)
 
 if(params$suite=="routine"){
-  label2<-lables[rep(seq_len(nrow(lables)), 11), ]}
+  label2<-lables[rep(seq_len(nrow(lables)), 12), ]}
 
 if(params$suite=="screening"){
-  label2<-lables[rep(seq_len(nrow(lables)), 7), ]}
+  label2<-lables[rep(seq_len(nrow(lables)), 8), ]}
 
 label2<-label2 %>% 
   arrange(trip.date,SH_SITE_ID)
